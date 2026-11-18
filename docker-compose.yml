@@ -1,0 +1,40 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: examsphere
+      MYSQL_USER: examsphere
+      MYSQL_PASSWORD: ${DB_PASSWORD:-examsphere}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:mysql://db:3306/examsphere?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
+      DB_USERNAME: examsphere
+      DB_PASSWORD: ${DB_PASSWORD:-examsphere}
+      DDL_AUTO: validate
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
