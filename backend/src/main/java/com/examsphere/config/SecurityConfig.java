@@ -1,8 +1,10 @@
 
 package com.examsphere.config;
 
+import com.examsphere.repository.UserRepository;
 import com.examsphere.security.JwtAuthFilter;
 
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,6 +31,9 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+     
+
+    // CORS CONFIGURATION
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
@@ -56,10 +61,7 @@ public class SecurityConfig {
                 "Origin"
         ));
 
-        config.setExposedHeaders(List.of(
-                "Authorization"
-        ));
-
+        config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
 
@@ -71,6 +73,7 @@ public class SecurityConfig {
         return source;
     }
 
+    // SECURITY FILTER CHAIN
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
