@@ -5,8 +5,8 @@ services:
     environment:
       MYSQL_DATABASE: examsphere
       MYSQL_USER: examsphere
-      MYSQL_PASSWORD: ${DB_PASSWORD:-examsphere}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -22,8 +22,10 @@ services:
     environment:
       DB_URL: jdbc:mysql://db:3306/examsphere?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
       DB_USERNAME: examsphere
-      DB_PASSWORD: ${DB_PASSWORD:-examsphere}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       DDL_AUTO: validate
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?Set APP_JWT_SECRET in .env}
+      APP_BOOTSTRAP_KEY: ${APP_BOOTSTRAP_KEY:?Set APP_BOOTSTRAP_KEY in .env}
     depends_on:
       db:
         condition: service_healthy

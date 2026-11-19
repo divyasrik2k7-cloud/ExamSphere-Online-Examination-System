@@ -10,137 +10,23 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const examData = [
-  {
-    id: 1,
-    title: "Data Structures & Algorithms",
-    subject: "Computer Science",
-    questions: 40,
-    duration: 60,
-    level: "Intermediate",
-    status: "Available",
-    attempts: 1,
-    score: 82
-  },
-  {
-    id: 2,
-    title: "Database Management Systems",
-    subject: "DBMS",
-    questions: 30,
-    duration: 45,
-    level: "Intermediate",
-    status: "Available",
-    attempts: 0,
-    score: null
-  },
-  {
-    id: 3,
-    title: "Operating Systems Fundamentals",
-    subject: "Operating Systems",
-    questions: 25,
-    duration: 30,
-    level: "Beginner",
-    status: "Upcoming",
-    attempts: 0,
-    score: null
-  },
-  {
-    id: 4,
-    title: "Computer Networks",
-    subject: "Computer Networks",
-    questions: 35,
-    duration: 50,
-    level: "Advanced",
-    status: "Completed",
-    attempts: 1,
-    score: 76
-  }
-];
+const examData = [];
 
-const qBank = [
-  {
-    id: 101,
-    q: "Which data structure follows the LIFO principle?",
-    subject: "Data Structures",
-    topic: "Stacks",
-    difficulty: "Easy",
-    marks: 1
-  },
-  {
-    id: 102,
-    q: "What is the average time complexity of binary search?",
-    subject: "Data Structures",
-    topic: "Searching",
-    difficulty: "Easy",
-    marks: 1
-  },
-  {
-    id: 103,
-    q: "Which traversal uses a queue?",
-    subject: "Data Structures",
-    topic: "Graphs",
-    difficulty: "Medium",
-    marks: 2
-  },
-  {
-    id: 104,
-    q: "Which normal form removes partial dependency?",
-    subject: "DBMS",
-    topic: "Normalization",
-    difficulty: "Medium",
-    marks: 2
-  },
-  {
-    id: 105,
-    q: "Which protocol is connection-oriented?",
-    subject: "Computer Networks",
-    topic: "Transport",
-    difficulty: "Easy",
-    marks: 1
-  },
-  {
-    id: 106,
-    q: "Which scheduling algorithm uses a time quantum?",
-    subject: "Operating Systems",
-    topic: "CPU Scheduling",
-    difficulty: "Easy",
-    marks: 1
-  }
-];
+const qBank = [];
 
-const questions = [
-  {
-    q: "Which data structure follows the LIFO principle?",
-    a: ["Queue", "Stack", "Tree", "Graph"],
-    correct: 1
-  },
-  {
-    q: "What is the average time complexity of binary search?",
-    a: ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
-    correct: 1
-  },
-  {
-    q: "Which traversal uses a queue?",
-    a: ["DFS", "Inorder", "BFS", "Postorder"],
-    correct: 2
-  },
-  {
-    q: "Which sorting algorithm is generally stable?",
-    a: ["Heap Sort", "Quick Sort", "Merge Sort", "Selection Sort"],
-    correct: 2
-  },
-  {
-    q: "What does a hash table primarily provide?",
-    a: [
-      "Constant-time average lookup",
-      "Tree balancing",
-      "Graph traversal",
-      "Sequential storage"
-    ],
-    correct: 0
-  }
-];
+const questions = [];
 
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
+async function apiRequest(path, options = {}) {
+  const token = localStorage.getItem("oqes_token");
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } });
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.error || `Request failed (${response.status})`);
+  return data;
+}
+function fromApiExam(e) { return { id:e.id, title:e.title, subject:e.subject, description:e.description, duration:e.durationMinutes, totalMarks:e.totalMarks, status:e.status === "PUBLISHED" ? "Available" : e.status === "CLOSED" ? "Completed" : "Draft", questionsData:(e.questions||[]).map(q=>({ q:q.text, options:q.options, correct:q.correct ?? 0, marks:Number(q.marks||1), explanation:q.explanation||"" })) }; }
 
 function Modal({ title, onClose, children, footer }) {
   useEffect(() => {
@@ -215,16 +101,12 @@ function saveStore(key, value) {
   }
 }
 
-const initialNotes = [
-  { id: 1, text: "DBMS Examination is scheduled for October 12 at 10:00 AM.", read: false },
-  { id: 2, text: "Your Data Structures result is now available.", read: false },
-  { id: 3, text: "New question bank content was added to Operating Systems.", read: false },
-  { id: 4, text: "Your weekly performance report is ready.", read: true }
-];
+const initialNotes = [];
 
 function App() {
-  const [auth, setAuth] = useState(false);
-  const [role, setRole] = useState("Student");
+  const [auth, setAuth] = useState(() => Boolean(localStorage.getItem("oqes_token")));
+  const [role, setRole] = useState(() => { try { return JSON.parse(localStorage.getItem("oqes_user") || "{}").role?.toLowerCase().replace(/^./, c => c.toUpperCase()) || "Student"; } catch { return "Student"; } });
+  const [userEmail, setUserEmail] = useState(() => { try { return JSON.parse(localStorage.getItem("oqes_user") || "{}").email || ""; } catch { return ""; } });
   const [page, setPage] = useState("dashboard");
   const [mobile, setMobile] = useState(false);
   const [exam, setExam] = useState(null);
@@ -236,6 +118,15 @@ function App() {
 
   const unread = notes.filter((n) => !n.read).length;
 
+  useEffect(() => {
+    const token = localStorage.getItem("oqes_token");
+    if (!token) return;
+    fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => { if (!response.ok) throw new Error("Session expired"); return response.json(); })
+      .then(user => { setRole(user.role.charAt(0) + user.role.slice(1).toLowerCase()); setUserEmail(user.email); })
+      .catch(() => { localStorage.removeItem("oqes_token"); localStorage.removeItem("oqes_user"); setAuth(false); });
+  }, []);
+
   const notify = (message) => {
     setToast(message);
     setTimeout(() => setToast(""), 2500);
@@ -244,8 +135,9 @@ function App() {
   if (!auth) {
     return (
       <Auth
-        onLogin={(selectedRole) => {
+        onLogin={(selectedRole, selectedEmail) => {
           setRole(selectedRole);
+          setUserEmail(selectedEmail || "");
           setAuth(true);
           setPage("dashboard");
         }}
@@ -304,6 +196,8 @@ function App() {
   };
 
   const logout = () => {
+    localStorage.removeItem("oqes_token");
+    localStorage.removeItem("oqes_user");
     setAuth(false);
     setPage("dashboard");
     setResult(null);
@@ -320,8 +214,8 @@ function App() {
         }
       >
         <div className="brand">
-          <div className="brandmark">E</div>
-          <span>ExamSphere</span>
+          <div className="brandmark">Q</div>
+          <span>Online Quiz and Examination System</span>
         </div>
 
         <button
@@ -333,17 +227,7 @@ function App() {
 
         <div className="workspace">
           <small>WORKSPACE</small>
-          <select
-            value={role}
-            onChange={(e) => {
-              setRole(e.target.value);
-              nav("dashboard");
-            }}
-          >
-            <option>Student</option>
-            <option>Teacher</option>
-            <option>Admin</option>
-          </select>
+          <div className="workspace-role">{role} workspace</div>
         </div>
 
         <nav>
@@ -374,12 +258,6 @@ function App() {
 
           {role === "Teacher" && (
             <>
-              <Nav
-                i={<BookOpen />}
-                t="Question Bank"
-                a={page === "questions"}
-                c={() => nav("questions")}
-              />
 
               <Nav
                 i={<FileText />}
@@ -404,13 +282,6 @@ function App() {
                 t="User Management"
                 a={page === "users"}
                 c={() => nav("users")}
-              />
-
-              <Nav
-                i={<BookOpen />}
-                t="Question Bank"
-                a={page === "questions"}
-                c={() => nav("questions")}
               />
 
               <Nav
@@ -487,7 +358,7 @@ function App() {
           </button>
 
           <div className="crumb">
-            <span className="muted">ExamSphere / </span>
+            <span className="muted">Online Quiz and Examination System / </span>
             {page.replaceAll("-", " ")}
           </div>
 
@@ -526,7 +397,7 @@ function App() {
           <Dashboard role={role} start={start} nav={nav} />
         )}
 
-        {page === "exams" && <Exams start={start} viewResult={viewResult} />}
+        {page === "exams" && <Exams start={start} viewResult={viewResult} userEmail={userEmail} />}
 
         {page === "instructions" && (
           <Instructions
@@ -546,7 +417,7 @@ function App() {
         )}
 
         {page === "result" && (
-          <Result nav={nav} result={result || resultFor(examData[0].score)} />
+          <Result nav={nav} result={result || resultFor(0)} />
         )}
 
         {page === "analytics" && (
@@ -614,49 +485,29 @@ function Auth({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [forgot, setForgot] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetSent, setResetSent] = useState(false);
 
-  const demoAccounts = {
-    "student@examsphere.com": { password: "student123", role: "Student" },
-    "teacher@examsphere.com": { password: "teacher123", role: "Teacher" },
-    "admin@examsphere.com": { password: "admin123", role: "Admin" }
-  };
+  const API_BASE = import.meta.env.VITE_API_URL || "";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const key = email.trim().toLowerCase();
-    const registered = loadStore("examsphere_users", {});
-    const accounts = { ...demoAccounts, ...registered };
-
-    if (mode === "signup") {
-      if (!name.trim()) return setError("Please enter your full name.");
-      if (!/^\S+@\S+\.\S+$/.test(key)) return setError("Please enter a valid email address.");
-      if (password.length < 6) return setError("Password must be at least 6 characters.");
-      if (accounts[key]) return setError("An account with this email already exists.");
-      saveStore("examsphere_users", {
-        ...registered,
-        [key]: { password, role: "Student", name: name.trim() }
+    if (!/^\S+@\S+\.\S+$/.test(key)) return setError("Please enter a valid email address.");
+    if (!password) return setError("Please enter your password.");
+    if (mode === "signup" && (!name.trim() || password.length < 8)) return setError("Enter your name and a password of at least 8 characters.");
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/${mode === "signup" ? "register" : "login"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mode === "signup" ? { name: name.trim(), email: key, password } : { email: key, password })
       });
-      setError("");
-      onLogin("Student");
-      return;
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.detail || "Unable to authenticate. Check your details and try again.");
+      localStorage.setItem("oqes_token", data.token);
+      localStorage.setItem("oqes_user", JSON.stringify(data.user));
+      const roleName = data.user.role.charAt(0) + data.user.role.slice(1).toLowerCase();
+      onLogin(roleName, data.user.email);
+    } catch (err) {
+      setError(err.message || "Cannot connect to the server. Make sure the backend and database are running.");
     }
-
-    const user = accounts[key];
-    if (!user || user.password !== password) {
-      setError("Invalid email or password.");
-      return;
-    }
-    setError("");
-    onLogin(user.role);
-  };
-
-  const fillDemo = (role) => {
-    const entry = Object.entries(demoAccounts).find(([, v]) => v.role === role);
-    setEmail(entry[0]);
-    setPassword(entry[1].password);
-    setError("");
   };
 
   const closeForgot = () => {
@@ -669,8 +520,8 @@ function Auth({ onLogin }) {
     <div className="auth">
       <div className="auth-art">
         <div className="auth-brand">
-          <div className="brandmark">E</div>
-          ExamSphere
+          <div className="brandmark">Q</div>
+          Online Quiz and Examination System
         </div>
 
         <div className="art-copy">
@@ -696,7 +547,7 @@ function Auth({ onLogin }) {
 
       <div className="auth-card">
         <div className="auth-head">
-          <div className="mini-logo">E</div>
+          <div className="mini-logo">Q</div>
 
           <h2>
             {mode === "login" ? "Welcome back" : "Create your account"}
@@ -755,43 +606,9 @@ function Auth({ onLogin }) {
 
         {error && <div className="form-error">{error}</div>}
 
-        {mode === "login" && (
-          <div className="auth-row">
-            <label className="check">
-              <input type="checkbox" />
-              Remember me
-            </label>
-
-            <button
-              className="text-btn"
-              type="button"
-              onClick={() => {
-                setResetEmail(email);
-                setForgot(true);
-              }}
-            >
-              Forgot password?
-            </button>
-          </div>
-        )}
-
         <button className="primary auth-submit" onClick={handleSubmit}>
           {mode === "login" ? "Sign in" : "Create account"}
           <ArrowRight />
-        </button>
-
-        <div className="or">
-          <span />
-          OR
-          <span />
-        </div>
-
-        <button
-          className="social"
-          type="button"
-          onClick={() => onLogin("Student")}
-        >
-          Continue with Google (demo)
         </button>
 
         <p className="switch">
@@ -810,57 +627,10 @@ function Auth({ onLogin }) {
           </button>
         </p>
 
-        {mode === "login" && (
-          <div className="demo-roles">
-            <small>DEMO ACCOUNTS — tap to fill</small>
-            <div>
-              <button type="button" onClick={() => fillDemo("Student")}>Student</button>
-              <button type="button" onClick={() => fillDemo("Teacher")}>Teacher</button>
-              <button type="button" onClick={() => fillDemo("Admin")}>Admin</button>
-            </div>
-          </div>
-        )}
+
       </div>
 
-      {forgot && (
-        <Modal
-          title="Reset your password"
-          onClose={closeForgot}
-          footer={
-            resetSent ? (
-              <button className="primary" onClick={closeForgot}>Done</button>
-            ) : (
-              <>
-                <button className="outline" onClick={closeForgot}>Cancel</button>
-                <button
-                  className="primary"
-                  disabled={!/^\S+@\S+\.\S+$/.test(resetEmail.trim())}
-                  onClick={() => setResetSent(true)}
-                >
-                  Send reset link
-                </button>
-              </>
-            )
-          }
-        >
-          {resetSent ? (
-            <p className="muted">
-              If an account exists for <strong>{resetEmail.trim()}</strong>,
-              a reset link has been sent. (Demo mode: no email is actually sent.)
-            </p>
-          ) : (
-            <Field label="Email address">
-              <input
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                placeholder="name@example.com"
-                autoFocus
-              />
-            </Field>
-          )}
-        </Modal>
-      )}
+
     </div>
   );
 }
@@ -878,16 +648,17 @@ function Dashboard({ role, start, nav }) {
 }
 
 function StudentDashboard({ start, nav }) {
+  const published = loadStore("examsphere_exams", []).filter(e=>e.status==="Available");
   return (
     <section className="content">
       <div className="hero">
         <div>
           <p className="eyebrow">
-            THURSDAY · OCTOBER 6, 2026
+            STUDENT WORKSPACE
           </p>
 
           <h1>
-            Good evening, Divya <span>✦</span>
+            Welcome back <span>✦</span>
           </h1>
 
           <p>
@@ -898,31 +669,27 @@ function StudentDashboard({ start, nav }) {
 
         <button
           className="primary"
-          onClick={() => start(examData[0])}
+          onClick={() => nav("exams")}
         >
           <Play /> Quick Start
         </button>
       </div>
 
       <div className="stats">
-        <Stat
-          i={<ClipboardCheck />}
-          v="12"
-          l="Exams Attempted"
-        />
+        <Stat i={<ClipboardCheck />} v="0" l="Exams Attempted" />
         <Stat
           i={<BarChart3 />}
-          v="82%"
+          v="0%"
           l="Average Score"
         />
         <Stat
           i={<Target />}
-          v="87%"
+          v="0%"
           l="Accuracy"
         />
         <Stat
           i={<Clock />}
-          v="14h"
+          v="0h"
           l="Learning Time"
         />
       </div>
@@ -935,9 +702,7 @@ function StudentDashboard({ start, nav }) {
             action={() => nav("exams")}
           />
 
-          {examData
-            .slice(0, 3)
-            .map((e, i) => (
+          {published.slice(0,3).map((e, i) => (
               <ExamRow
                 e={e}
                 key={e.id}
@@ -1004,8 +769,8 @@ function TeacherDashboard({ nav }) {
           </h1>
 
           <p>
-            Manage assessments, question banks and
-            student performance.
+            Create assessments, add questions and
+            review student performance.
           </p>
         </div>
 
@@ -1020,22 +785,22 @@ function TeacherDashboard({ nav }) {
       <div className="stats">
         <Stat
           i={<FileText />}
-          v="18"
+          v="0"
           l="Exams Created"
         />
         <Stat
           i={<Play />}
-          v="6"
+          v="0"
           l="Active Exams"
         />
         <Stat
           i={<Users />}
-          v="428"
+          v="0"
           l="Students Assessed"
         />
         <Stat
           i={<BarChart3 />}
-          v="78%"
+          v="0%"
           l="Average Class Score"
         />
       </div>
@@ -1101,12 +866,6 @@ function TeacherDashboard({ nav }) {
       </div>
 
       <div className="learning-grid">
-        <ActionCard
-          icon={<BookOpen />}
-          title="Question Bank"
-          text="Create and manage questions"
-          onClick={() => nav("questions")}
-        />
 
         <ActionCard
           icon={<FileText />}
@@ -1140,7 +899,7 @@ function AdminDashboard({ nav }) {
           </h1>
 
           <p>
-            Monitor the complete ExamSphere platform.
+            Monitor the complete Online Quiz and Examination System platform.
           </p>
         </div>
 
@@ -1155,22 +914,22 @@ function AdminDashboard({ nav }) {
       <div className="stats">
         <Stat
           i={<Users />}
-          v="428"
+          v="0"
           l="Total Students"
         />
         <Stat
           i={<Users />}
-          v="24"
+          v="0"
           l="Total Teachers"
         />
         <Stat
           i={<FileText />}
-          v="18"
+          v="0"
           l="Active Exams"
         />
         <Stat
           i={<ClipboardCheck />}
-          v="3,842"
+          v="0"
           l="Total Attempts"
         />
       </div>
@@ -1184,7 +943,7 @@ function AdminDashboard({ nav }) {
 
           <Metric
             label="Students"
-            value="428"
+            value="0"
             percent={86}
           />
 
@@ -1404,11 +1163,14 @@ function PageTitle({
   );
 }
 
-function Exams({ start, viewResult }) {
+function Exams({ start, viewResult, userEmail }) {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [created,setCreated] = useState(() => loadStore("examsphere_exams", []));
+  useEffect(() => { if(localStorage.getItem("oqes_token")) apiRequest("/api/exams/published").then(rows=>{const next=rows.map(fromApiExam);setCreated(next);}).catch(()=>{}); }, []);
+  const allExams = created.filter(x => x.status === "Available" && ((x.assignedTo || ["ALL"]).includes("ALL") || (x.assignedTo || []).includes(userEmail)));
 
-  const visible = examData.filter(
+  const visible = allExams.filter(
     (e) =>
       (filter === "All" || e.status === filter) &&
       (e.title + " " + e.subject)
@@ -1590,6 +1352,9 @@ function Instructions({ exam, onStart }) {
 }
 
 function Attempt({ onSubmit, exam }) {
+  const attemptQuestions = (exam?.questionsData || []).map(q => ({
+    q: q.q, a: q.options || [], correct: Number(q.correct || 0), marks: Number(q.marks || 1)
+  }));
   const [cur, setCur] = useState(0);
   const [ans, setAns] = useState({});
   const [marked, setMarked] = useState([]);
@@ -1603,28 +1368,14 @@ function Attempt({ onSubmit, exam }) {
 
     setSubmitted(true);
 
-    const correct = questions.reduce(
-      (total, question, index) =>
-        total +
-        (ans[index] === question.correct ? 1 : 0),
-      0
-    );
-
+    const correct = attemptQuestions.reduce((n, q, i) => n + (ans[i] === q.correct ? 1 : 0), 0);
     const answered = Object.keys(ans).length;
     const incorrect = answered - correct;
-    const unanswered =
-      questions.length - answered;
-
-    const percentage = Math.round(
-      (correct / questions.length) * 100
-    );
-
-    onSubmit({
-      correct,
-      incorrect,
-      unanswered,
-      percentage
-    });
+    const unanswered = attemptQuestions.length - answered;
+    const totalMarks = attemptQuestions.reduce((n,q)=>n+q.marks,0);
+    const earnedMarks = attemptQuestions.reduce((n,q,i)=>n+(ans[i] === q.correct ? q.marks : 0),0);
+    const percentage = totalMarks ? Math.round(earnedMarks / totalMarks * 100) : 0;
+    onSubmit({ correct, incorrect, unanswered, percentage, earnedMarks, totalMarks });
   };
 
   useEffect(() => {
@@ -1645,7 +1396,8 @@ function Attempt({ onSubmit, exam }) {
     return () => clearInterval(timer);
   }, [submitted]);
 
-  const q = questions[cur];
+  const q = attemptQuestions[cur];
+  if (!attemptQuestions.length) return <section className="content"><div className="panel empty">This test has no questions. Ask the teacher to update it before attempting.</div></section>;
 
   const selectAnswer = (index) => {
     setAns((previous) => ({
@@ -1673,7 +1425,7 @@ function Attempt({ onSubmit, exam }) {
 
           <span>
             Live examination · Question {cur + 1} of{" "}
-            {questions.length}
+            {attemptQuestions.length}
           </span>
         </div>
 
@@ -1701,7 +1453,7 @@ function Attempt({ onSubmit, exam }) {
           <h3>Question palette</h3>
 
           <div className="palette-grid">
-            {questions.map((_, i) => (
+            {attemptQuestions.map((_, i) => (
               <button
                 key={i}
                 className={
@@ -1784,12 +1536,12 @@ function Attempt({ onSubmit, exam }) {
             <button
               className="primary"
               onClick={() =>
-                cur === questions.length - 1
+                cur === attemptQuestions.length - 1
                   ? submitExam()
                   : setCur(cur + 1)
               }
             >
-              {cur === questions.length - 1
+              {cur === attemptQuestions.length - 1
                 ? "Submit"
                 : "Next"}
 
@@ -1806,7 +1558,7 @@ function Result({ nav, result }) {
   const correct = result?.correct ?? 0;
   const incorrect = result?.incorrect ?? 0;
   const unanswered =
-    result?.unanswered ?? questions.length;
+    result?.unanswered ?? 0;
   const percentage = result?.percentage ?? 0;
 
   return (
@@ -1875,7 +1627,7 @@ function Result({ nav, result }) {
             ["Unanswered", unanswered]
           ].map(([label, value]) => {
             const percent = Math.round(
-              (value / questions.length) * 100
+              (value / Math.max(1, (result?.correct || 0) + (result?.incorrect || 0) + (result?.unanswered || 0))) * 100
             );
 
             return (
@@ -1950,13 +1702,13 @@ function Analytics({ role }) {
       <div className="stats">
         <Stat
           i={<BarChart3 />}
-          v="82%"
+          v="0%"
           l="Overall Score"
         />
 
         <Stat
           i={<Target />}
-          v="87%"
+          v="0%"
           l="Accuracy"
         />
 
@@ -1968,7 +1720,7 @@ function Analytics({ role }) {
 
         <Stat
           i={<Clock />}
-          v="42m"
+          v="0m"
           l="Avg. Time"
         />
       </div>
@@ -2037,25 +1789,25 @@ function TeacherAnalytics() {
       <div className="stats">
         <Stat
           i={<BarChart3 />}
-          v="78%"
+          v="0%"
           l="Class Average"
         />
 
         <Stat
           i={<Target />}
-          v="81%"
+          v="0%"
           l="Class Accuracy"
         />
 
         <Stat
           i={<Users />}
-          v="428"
+          v="0"
           l="Students"
         />
 
         <Stat
           i={<FileText />}
-          v="18"
+          v="0"
           l="Examinations"
         />
       </div>
@@ -2125,25 +1877,25 @@ function AdminAnalytics() {
       <div className="stats">
         <Stat
           i={<Users />}
-          v="452"
+          v="0"
           l="Total Users"
         />
 
         <Stat
           i={<FileText />}
-          v="18"
+          v="0"
           l="Active Exams"
         />
 
         <Stat
           i={<ClipboardCheck />}
-          v="3,842"
+          v="0"
           l="Attempts"
         />
 
         <Stat
           i={<BarChart3 />}
-          v="79%"
+          v="0%"
           l="System Average"
         />
       </div>
@@ -2206,450 +1958,126 @@ function AdminAnalytics() {
 }
 
 function QuestionBank({ notify }) {
-  const [items, setItems] = useState(qBank);
+  const seed = qBank.map(q => ({
+    ...q,
+    options: q.options || ["Option A", "Option B", "Option C", "Option D"],
+    correct: q.correct ?? 0,
+    explanation: q.explanation || "",
+  }));
+  const [items, setItems] = useState(() => loadStore("examsphere_questions", seed));
   const [search, setSearch] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("All");
   const [diff, setDiff] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
-  const [modal, setModal] = useState(null); // {type:"view"|"edit"|"new"|"delete", q}
+  const [modal, setModal] = useState(null);
   const [form, setForm] = useState(null);
-
-  const blank = { q: "", subject: "Data Structures", topic: "", difficulty: "Easy", marks: 1 };
-
-  const visible = items.filter(
-    (x) =>
-      (diff === "All" || x.difficulty === diff) &&
-      (x.q + " " + x.subject + " " + x.topic)
-        .toLowerCase()
-        .includes(search.trim().toLowerCase())
-  );
-
-  const open = (type, q) => {
-    setModal({ type, q });
-    setForm(type === "new" ? { ...blank } : q ? { ...q } : null);
-  };
+  const subjects = ["Data Structures", "DBMS", "Operating Systems", "Computer Networks", "Java Programming", "Software Engineering", "Computer Science"];
+  const blank = { q: "", subject: subjects[0], topic: "", difficulty: "Easy", marks: 1, options: ["", "", "", ""], correct: 0, explanation: "" };
+  const visible = items.filter(x => (subjectFilter === "All" || x.subject === subjectFilter) && (diff === "All" || x.difficulty === diff) && (x.q + " " + x.subject + " " + (x.topic || "")).toLowerCase().includes(search.trim().toLowerCase()));
+  const open = (type, q) => { setModal({ type, q }); setForm(type === "new" ? { ...blank, options: [...blank.options] } : q ? { ...q, options: [...(q.options || ["", "", "", ""])] } : null); };
   const close = () => setModal(null);
-
+  const set = k => e => setForm({ ...form, [k]: e.target.value });
+  const setOption = (i, value) => setForm({ ...form, options: form.options.map((v, n) => n === i ? value : v) });
   const save = () => {
-    if (!form.q.trim()) return notify("Please enter the question text");
-    const clean = { ...form, marks: Number(form.marks) || 1 };
-    if (modal.type === "new") {
-      setItems([{ ...clean, id: Date.now() }, ...items]);
-      notify("Question added");
-    } else {
-      setItems(items.map((x) => (x.id === clean.id ? clean : x)));
-      notify("Question updated");
-    }
-    close();
+    if (!form.q.trim()) return notify("Enter the question text.");
+    if (form.options.some(x => !x.trim())) return notify("Enter all four options.");
+    const clean = { ...form, q: form.q.trim(), topic: form.topic.trim(), marks: Number(form.marks) || 1, correct: Number(form.correct) };
+    const next = modal.type === "new" ? [{ ...clean, id: Date.now() }, ...items] : items.map(x => x.id === clean.id ? clean : x);
+    setItems(next); saveStore("examsphere_questions", next); notify(modal.type === "new" ? "Question added to its subject bank." : "Question updated."); close();
   };
-
-  const remove = () => {
-    setItems(items.filter((x) => x.id !== modal.q.id));
-    notify("Question deleted");
-    close();
-  };
-
-  const exportCSV = () => {
-    downloadCSV("question-bank.csv", [
-      ["ID", "Question", "Subject", "Topic", "Difficulty", "Marks"],
-      ...visible.map((x) => [x.id, x.q, x.subject, x.topic, x.difficulty, x.marks])
-    ]);
-    notify(`Exported ${visible.length} questions`);
-  };
-
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-
-  return (
-    <section className="content">
-      <PageTitle
-        eyebrow="CONTENT MANAGEMENT"
-        title="Question Bank"
-        sub="Create, organize and review your assessment questions."
-        button={
-          <button className="primary" onClick={() => open("new")}>
-            <Plus /> New Question
-          </button>
-        }
-      />
-
-      <div className="toolbar">
-        <div className="filter-search">
-          <Search />
-          <input
-            placeholder="Search questions..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <button
-          className={"outline " + (showFilters || diff !== "All" ? "on" : "")}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter /> Filters{diff !== "All" ? ` (${diff})` : ""}
-        </button>
-
-        <button className="outline" onClick={exportCSV}>
-          <Download /> Export
-        </button>
-      </div>
-
-      {showFilters && (
-        <div className="filterbar">
-          {["All", "Easy", "Medium", "Hard"].map((d) => (
-            <button
-              key={d}
-              className={"filter " + (diff === d ? "active" : "")}
-              onClick={() => setDiff(d)}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="panel table">
-        <div className="table-head qgrid">
-          <span>Question</span>
-          <span>Subject / Topic</span>
-          <span>Difficulty</span>
-          <span>Marks</span>
-          <span>Actions</span>
-        </div>
-
-        {visible.length === 0 && <div className="empty">No questions found.</div>}
-
-        {visible.map((q) => (
-          <div className="table-row qgrid" key={q.id}>
-            <strong>{q.q}</strong>
-
-            <span>
-              {q.subject}
-              <small>{q.topic}</small>
-            </span>
-
-            <span>
-              <b className={"difficulty " + q.difficulty.toLowerCase()}>
-                {q.difficulty}
-              </b>
-            </span>
-
-            <span>{q.marks}</span>
-
-            <span className="actions">
-              <button title="View" aria-label="View" onClick={() => open("view", q)}>
-                <Eye />
-              </button>
-              <button title="Edit" aria-label="Edit" onClick={() => open("edit", q)}>
-                <Edit3 />
-              </button>
-              <button title="Delete" aria-label="Delete" onClick={() => open("delete", q)}>
-                <Trash2 />
-              </button>
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {modal?.type === "view" && (
-        <Modal
-          title="Question details"
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Close</button>
-              <button className="primary" onClick={() => open("edit", modal.q)}>Edit</button>
-            </>
-          }
-        >
-          <h4 className="modal-q">{modal.q.q}</h4>
-          <dl className="detail-list">
-            <dt>Subject</dt><dd>{modal.q.subject}</dd>
-            <dt>Topic</dt><dd>{modal.q.topic}</dd>
-            <dt>Difficulty</dt><dd>{modal.q.difficulty}</dd>
-            <dt>Marks</dt><dd>{modal.q.marks}</dd>
-          </dl>
-        </Modal>
-      )}
-
-      {(modal?.type === "new" || modal?.type === "edit") && form && (
-        <Modal
-          title={modal.type === "new" ? "New question" : "Edit question"}
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Cancel</button>
-              <button className="primary" onClick={save}>
-                {modal.type === "new" ? "Add question" : "Save changes"}
-              </button>
-            </>
-          }
-        >
-          <Field label="Question">
-            <textarea rows={3} value={form.q} onChange={set("q")} autoFocus />
-          </Field>
-          <div className="two-col">
-            <Field label="Subject">
-              <input value={form.subject} onChange={set("subject")} />
-            </Field>
-            <Field label="Topic">
-              <input value={form.topic} onChange={set("topic")} />
-            </Field>
-            <Field label="Difficulty">
-              <select value={form.difficulty} onChange={set("difficulty")}>
-                <option>Easy</option>
-                <option>Medium</option>
-                <option>Hard</option>
-              </select>
-            </Field>
-            <Field label="Marks">
-              <input type="number" min="1" value={form.marks} onChange={set("marks")} />
-            </Field>
-          </div>
-        </Modal>
-      )}
-
-      {modal?.type === "delete" && (
-        <Modal
-          title="Delete question?"
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Cancel</button>
-              <button className="danger" onClick={remove}>Delete</button>
-            </>
-          }
-        >
-          <p className="muted">
-            “{modal.q.q}” will be removed from the question bank.
-          </p>
-        </Modal>
-      )}
-    </section>
-  );
+  const remove = () => { const next = items.filter(x => x.id !== modal.q.id); setItems(next); saveStore("examsphere_questions", next); notify("Question deleted."); close(); };
+  const exportCSV = () => { downloadCSV("question-bank.csv", [["ID","Question","Subject","Topic","Difficulty","Marks","Option A","Option B","Option C","Option D","Correct Option"], ...visible.map(x => [x.id,x.q,x.subject,x.topic,x.difficulty,x.marks,...(x.options || []), String.fromCharCode(65 + Number(x.correct || 0))])]); notify(`Exported ${visible.length} questions`); };
+  return <section className="content">
+    <PageTitle eyebrow="CONTENT MANAGEMENT" title="Question Bank" sub="Questions are stored separately by subject. Add MCQs with four options and an answer key." button={<button className="primary" onClick={() => open("new")}><Plus /> New Question</button>} />
+    <div className="toolbar"><div className="filter-search"><Search /><input placeholder="Search questions..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+      <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}><option>All</option>{[...new Set([...subjects, ...items.map(x => x.subject)])].map(x => <option key={x}>{x}</option>)}</select>
+      <button className="outline" onClick={() => setShowFilters(!showFilters)}><Filter /> Difficulty</button><button className="outline" onClick={exportCSV}><Download /> Export</button></div>
+    {showFilters && <div className="filterbar">{["All","Easy","Medium","Hard"].map(d => <button key={d} className={"filter " + (diff === d ? "active" : "")} onClick={() => setDiff(d)}>{d}</button>)}</div>}
+    <div className="panel table"><div className="table-head qgrid"><span>Question</span><span>Subject / Topic</span><span>Difficulty</span><span>Marks</span><span>Actions</span></div>
+      {!visible.length && <div className="empty">No questions in this subject yet. Use “New Question” to add one.</div>}
+      {visible.map(q => <div className="table-row qgrid" key={q.id}><strong>{q.q}</strong><span>{q.subject}<small>{q.topic || "General"}</small></span><span><b className={"difficulty " + q.difficulty.toLowerCase()}>{q.difficulty}</b></span><span>{q.marks}</span><span className="actions"><button title="View" onClick={() => open("view",q)}><Eye /></button><button title="Edit" onClick={() => open("edit",q)}><Edit3 /></button><button title="Delete" onClick={() => open("delete",q)}><Trash2 /></button></span></div>)}
+    </div>
+    {modal?.type === "view" && <Modal title="Question details" onClose={close}><h4 className="modal-q">{modal.q.q}</h4><p><b>{modal.q.subject}</b> · {modal.q.topic} · {modal.q.difficulty} · {modal.q.marks} mark(s)</p><ol>{(modal.q.options || []).map((o,i)=><li key={i}>{o}{i === Number(modal.q.correct) ? " ✓ Correct answer" : ""}</li>)}</ol>{modal.q.explanation && <p>{modal.q.explanation}</p>}</Modal>}
+    {(modal?.type === "new" || modal?.type === "edit") && form && <Modal title={modal.type === "new" ? "Add subject question" : "Edit question"} onClose={close} footer={<><button className="outline" onClick={close}>Cancel</button><button className="primary" onClick={save}>Save question</button></>}>
+      <Field label="Question"><textarea rows={3} value={form.q} onChange={set("q")} autoFocus /></Field><div className="two-col"><Field label="Subject (choose or type a new one)"><input list="examsphere-subject-options" value={form.subject} onChange={set("subject")} placeholder="Enter subject name"/><datalist id="examsphere-subject-options">{[...new Set([...subjects, ...items.map(x=>x.subject)])].map(x=><option key={x} value={x}/>)}</datalist></Field><Field label="Topic"><input value={form.topic} onChange={set("topic")} placeholder="e.g. Normalization" /></Field><Field label="Difficulty"><select value={form.difficulty} onChange={set("difficulty")}><option>Easy</option><option>Medium</option><option>Hard</option></select></Field><Field label="Marks"><input type="number" min="1" value={form.marks} onChange={set("marks")} /></Field></div>
+      <h4>Answer options</h4>{form.options.map((o,i)=><Field key={i} label={`Option ${String.fromCharCode(65+i)}`}><input value={o} onChange={e=>setOption(i,e.target.value)} /></Field>)}<Field label="Correct answer"><select value={form.correct} onChange={set("correct")}>{form.options.map((o,i)=><option value={i} key={i}>{String.fromCharCode(65+i)} — {o || "Option text not entered"}</option>)}</select></Field><Field label="Explanation (optional)"><textarea rows={2} value={form.explanation} onChange={set("explanation")} /></Field>
+    </Modal>}
+    {modal?.type === "delete" && <Modal title="Delete question?" onClose={close} footer={<><button className="outline" onClick={close}>Cancel</button><button className="danger" onClick={remove}>Delete</button></>}><p>“{modal.q.q}” will be permanently removed from this browser's question bank.</p></Modal>}
+  </section>;
 }
 
 function ManageExams({ notify }) {
-  const [exams, setExams] = useState(
-    examData.map((e) => ({ ...e })).concat([
-      {
-        id: 5,
-        title: "Java Programming Assessment",
-        subject: "Programming",
-        questions: 50,
-        duration: 60,
-        status: "Draft"
-      }
-    ])
-  );
+  const [exams, setExams] = useState(() => loadStore("examsphere_exams", []));
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState(null);
-
-  const blank = { title: "", subject: "", questions: 20, duration: 30, status: "Draft" };
+  useEffect(() => { if (!localStorage.getItem("oqes_token")) return; apiRequest("/api/exams").then(rows=>{const next=rows.map(fromApiExam);setExams(next);saveStore("examsphere_exams",next);}).catch(err=>notify(`Could not load tests from server: ${err.message}`)); }, []);
+  const blankQuestion = () => ({ q:"", options:["","","",""], correct:0, marks:1, difficulty:"Easy", explanation:"" });
+  const blank = () => ({ title:"", subject:"", duration:30, description:"", assignedTo:"ALL", questionsData:[blankQuestion()] });
+  const [form, setForm] = useState(blank());
+  const [assigneeText, setAssigneeText] = useState("");
   const open = (type, e) => {
-    setModal({ type, e });
-    setForm(type === "new" ? { ...blank } : e ? { ...e } : null);
+    setModal({type,e});
+    setForm(type === "new" ? blank() : {...e, questionsData:(e.questionsData||[]).map(q=>({...q,options:[...(q.options||["","","",""])]}))});
+    setAssigneeText(type === "edit" && !(e.assignedTo||["ALL"]).includes("ALL") ? e.assignedTo.join(", ") : "");
   };
   const close = () => setModal(null);
-  const set = (k) => (ev) => setForm({ ...form, [k]: ev.target.value });
-
-  const save = () => {
-    if (!form.title.trim()) return notify("Please enter an exam title");
-    const clean = {
-      ...form,
-      questions: Number(form.questions) || 1,
-      duration: Number(form.duration) || 1
-    };
-    if (modal.type === "new") {
-      setExams([...exams, { ...clean, id: Date.now() }]);
-      notify("Exam created as draft");
-    } else {
-      setExams(exams.map((x) => (x.id === clean.id ? clean : x)));
-      notify("Exam updated");
+  const patch = (key,value) => setForm(f=>({...f,[key]:value}));
+  const patchQuestion = (index,key,value) => setForm(f=>({...f,questionsData:f.questionsData.map((q,i)=>i===index?{...q,[key]:value}:q)}));
+  const patchOption = (qi,oi,value) => setForm(f=>({...f,questionsData:f.questionsData.map((q,i)=>i===qi?{...q,options:q.options.map((o,j)=>j===oi?value:o)}:q)}));
+  const addQuestion = () => patch("questionsData",[...form.questionsData,blankQuestion()]);
+  const removeQuestion = (index) => patch("questionsData",form.questionsData.filter((_,i)=>i!==index));
+  const save = async () => {
+    if (!form.title.trim() || !form.subject.trim()) return notify("Enter a test name and subject.");
+    if (!form.questionsData.length) return notify("Add at least one question.");
+    for (let i=0;i<form.questionsData.length;i++) {
+      const q=form.questionsData[i];
+      if (!q.q.trim() || q.options.some(o=>!o.trim())) return notify(`Complete question ${i+1} and all four options.`);
     }
-    close();
+    const assigned = form.assignedTo === "ALL" ? ["ALL"] : assigneeText.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+    if (form.assignedTo !== "ALL" && (!assigned.length || assigned.some(x=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)))) return notify("Enter valid student email addresses.");
+    const totalMarks=form.questionsData.reduce((n,q)=>n+(Number(q.marks)||1),0);
+    const clean={...form,title:form.title.trim(),subject:form.subject.trim(),duration:Math.max(1,Number(form.duration)||1),questionsData:form.questionsData.map(q=>({...q,correct:Number(q.correct),marks:Number(q.marks)||1})),questions:form.questionsData.length,totalMarks,assignedTo:assigned,status:modal.type==="edit"?(form.status||"Draft"):"Draft"};
+    try {
+      if (localStorage.getItem("oqes_token")) {
+        const payload={title:clean.title,description:clean.description,subject:clean.subject,durationMinutes:clean.duration,questions:clean.questionsData.map(q=>({text:q.q,options:q.options,correct:Number(q.correct),marks:Number(q.marks)||1,explanation:q.explanation||""}))};
+        const saved=await apiRequest(modal.type==="new"?"/api/exams":`/api/exams/${clean.id}`,{method:modal.type==="new"?"POST":"PUT",body:JSON.stringify(payload)});
+        const normalized=fromApiExam(saved); const next=modal.type==="new"?[...exams,normalized]:exams.map(x=>x.id===normalized.id?normalized:x);setExams(next);saveStore("examsphere_exams",next);
+      } else { const next=modal.type==="new"?[...exams,{...clean,id:Date.now()}]:exams.map(x=>x.id===clean.id?clean:x);setExams(next);saveStore("examsphere_exams",next); }
+      notify(modal.type==="new"?"Test saved as draft.":"Test updated."); close();
+    } catch(err) { notify(`Unable to save test: ${err.message}`); }
   };
-
-  const setStatus = (status) => {
-    setExams(exams.map((x) => (x.id === modal.e.id ? { ...x, status } : x)));
-    notify(`Exam marked as ${status}`);
-    close();
-  };
-
-  const duplicate = () => {
-    setExams([...exams, { ...modal.e, id: Date.now(), title: modal.e.title + " (Copy)", status: "Draft" }]);
-    notify("Exam duplicated");
-    close();
-  };
-
-  const remove = () => {
-    setExams(exams.filter((x) => x.id !== modal.e.id));
-    notify("Exam deleted");
-    close();
-  };
-
-  const count = (st) => exams.filter((x) => x.status === st).length;
-
-  return (
-    <section className="content">
-      <PageTitle
-        eyebrow="EXAM ADMINISTRATION"
-        title="Manage Examinations"
-        sub="Create, schedule, publish and monitor examinations."
-        button={
-          <button className="primary" onClick={() => open("new")}>
-            <Plus /> Create Exam
-          </button>
-        }
-      />
-
-      <div className="stats">
-        <Stat i={<FileText />} v={String(exams.length)} l="Total Exams" />
-        <Stat i={<Play />} v={String(count("Available") + count("Published"))} l="Published" />
-        <Stat i={<Clock />} v={String(count("Upcoming"))} l="Scheduled" />
-        <Stat i={<CheckCircle2 />} v={String(count("Completed"))} l="Completed" />
-      </div>
-
-      <div className="panel table">
-        <div className="table-head examgrid">
-          <span>Examination</span>
-          <span>Questions</span>
-          <span>Schedule</span>
-          <span>Status</span>
-          <span>Actions</span>
-        </div>
-
-        {exams.map((e) => (
-          <div className="table-row examgrid" key={e.id}>
-            <strong>
-              {e.title}
-              <small>{e.subject || "Programming"}</small>
-            </strong>
-
-            <span>{e.questions}</span>
-
-            <span>{e.status === "Upcoming" ? "Oct 12, 10:00 AM" : "—"}</span>
-
-            <span>
-              <b className={"status " + e.status.toLowerCase()}>{e.status}</b>
-            </span>
-
-            <span className="actions">
-              <button title="View" aria-label="View" onClick={() => open("view", e)}>
-                <Eye />
-              </button>
-              <button title="Edit" aria-label="Edit" onClick={() => open("edit", e)}>
-                <Edit3 />
-              </button>
-              <button title="More" aria-label="More actions" onClick={() => open("more", e)}>
-                <MoreHorizontal />
-              </button>
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {modal?.type === "view" && (
-        <Modal
-          title="Exam details"
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Close</button>
-              <button className="primary" onClick={() => open("edit", modal.e)}>Edit</button>
-            </>
-          }
-        >
-          <h4 className="modal-q">{modal.e.title}</h4>
-          <dl className="detail-list">
-            <dt>Subject</dt><dd>{modal.e.subject || "Programming"}</dd>
-            <dt>Questions</dt><dd>{modal.e.questions}</dd>
-            <dt>Duration</dt><dd>{modal.e.duration} minutes</dd>
-            <dt>Status</dt><dd>{modal.e.status}</dd>
-          </dl>
-        </Modal>
-      )}
-
-      {(modal?.type === "new" || modal?.type === "edit") && form && (
-        <Modal
-          title={modal.type === "new" ? "Create exam" : "Edit exam"}
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Cancel</button>
-              <button className="primary" onClick={save}>
-                {modal.type === "new" ? "Create exam" : "Save changes"}
-              </button>
-            </>
-          }
-        >
-          <Field label="Title">
-            <input value={form.title} onChange={set("title")} autoFocus />
-          </Field>
-          <div className="two-col">
-            <Field label="Subject">
-              <input value={form.subject || ""} onChange={set("subject")} />
-            </Field>
-            <Field label="Status">
-              <select value={form.status} onChange={set("status")}>
-                <option>Draft</option>
-                <option>Available</option>
-                <option>Upcoming</option>
-                <option>Completed</option>
-              </select>
-            </Field>
-            <Field label="Questions">
-              <input type="number" min="1" value={form.questions} onChange={set("questions")} />
-            </Field>
-            <Field label="Duration (min)">
-              <input type="number" min="1" value={form.duration} onChange={set("duration")} />
-            </Field>
-          </div>
-        </Modal>
-      )}
-
-      {modal?.type === "more" && (
-        <Modal title={modal.e.title} onClose={close}>
-          <div className="menu-list">
-            {modal.e.status !== "Available" && (
-              <button onClick={() => setStatus("Available")}>Publish now</button>
-            )}
-            {modal.e.status === "Available" && (
-              <button onClick={() => setStatus("Draft")}>Unpublish (move to draft)</button>
-            )}
-            <button onClick={duplicate}>Duplicate</button>
-            <button className="danger-text" onClick={() => open("delete", modal.e)}>
-              Delete
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {modal?.type === "delete" && (
-        <Modal
-          title="Delete exam?"
-          onClose={close}
-          footer={
-            <>
-              <button className="outline" onClick={close}>Cancel</button>
-              <button className="danger" onClick={remove}>Delete</button>
-            </>
-          }
-        >
-          <p className="muted">“{modal.e.title}” will be permanently removed.</p>
-        </Modal>
-      )}
-    </section>
-  );
+  const updateStatus = async (id,status) => { try { if(localStorage.getItem("oqes_token")) await apiRequest(`/api/exams/${id}/${status==="Available"?"publish":"unpublish"}`,{method:"PATCH"}); const next=exams.map(x=>x.id===id?{...x,status}:x);setExams(next);saveStore("examsphere_exams",next);notify(status==="Available"?"Test published.":"Test moved to draft.");close(); } catch(err) { notify(`Unable to update test: ${err.message}`); } };
+  const remove = async () => {try {if(localStorage.getItem("oqes_token")) await apiRequest(`/api/exams/${modal.e.id}`,{method:"DELETE"});const next=exams.filter(x=>x.id!==modal.e.id);setExams(next);saveStore("examsphere_exams",next);notify("Test deleted.");close();}catch(err){notify(`Unable to delete test: ${err.message}`);}};
+  const duplicate = () => {const next=[...exams,{...modal.e,id:Date.now(),title:modal.e.title+" (Copy)",status:"Draft"}];setExams(next);saveStore("examsphere_exams",next);notify("Test duplicated.");close();};
+  const count = status => exams.filter(x=>x.status===status).length;
+  return <section className="content">
+    <PageTitle eyebrow="ASSESSMENT MANAGEMENT" title="Create and Manage Tests" sub="Create a test and write every question in the same form. Each test keeps its own questions." button={<button className="primary" onClick={()=>open("new")}><Plus/> Create Test</button>}/>
+    <div className="stats"><Stat i={<FileText/>} v={exams.length} l="Total Tests"/><Stat i={<Play/>} v={count("Available")} l="Published"/><Stat i={<CheckCircle2/>} v={count("Draft")} l="Drafts"/><Stat i={<ClipboardCheck/>} v={exams.reduce((n,e)=>n+(e.questionsData||[]).length,0)} l="Questions Created"/></div>
+    <div className="panel table"><div className="table-head examgrid"><span>Test</span><span>Questions</span><span>Duration</span><span>Status</span><span>Actions</span></div>
+      {!exams.length?<div className="empty">No tests created yet. Choose <b>Create Test</b> to build your first test.</div>:exams.map(e=><div className="table-row examgrid" key={e.id}><strong>{e.title}<small>{e.subject}</small></strong><span>{(e.questionsData||[]).length}</span><span>{e.duration} min</span><span><b className={"status "+String(e.status).toLowerCase()}>{e.status}</b></span><span className="actions"><button title="View test" onClick={()=>setModal({type:"view",e})}><Eye/></button><button title="Edit test" onClick={()=>open("edit",e)}><Edit3/></button><button title="More actions" onClick={()=>setModal({type:"more",e})}><MoreHorizontal/></button></span></div>)}</div>
+    {(modal?.type==="new"||modal?.type==="edit")&&<Modal title={modal.type==="new"?"Create Test":"Edit Test"} onClose={close} footer={<><button className="outline" onClick={close}>Cancel</button><button className="primary" onClick={save}>Save Test</button></>}>
+      <div className="two-col"><Field label="Test name"><input value={form.title} onChange={e=>patch("title",e.target.value)} placeholder="e.g. Java Programming – Unit Test 1" autoFocus/></Field><Field label="Subject"><input value={form.subject} onChange={e=>patch("subject",e.target.value)} placeholder="e.g. Java Programming"/></Field></div>
+      <Field label="Description (optional)"><textarea rows="2" value={form.description||""} onChange={e=>patch("description",e.target.value)} placeholder="Brief instructions for students"/></Field>
+      <div className="two-col"><Field label="Duration (minutes)"><input type="number" min="1" value={form.duration} onChange={e=>patch("duration",e.target.value)}/></Field><Field label="Assign test to"><select value={form.assignedTo||"ALL"} onChange={e=>patch("assignedTo",e.target.value)}><option value="ALL">All students</option><option value="CUSTOM">Specific students</option></select></Field></div>
+      {form.assignedTo==="CUSTOM"&&<Field label="Student email addresses (comma-separated)"><input value={assigneeText} onChange={e=>setAssigneeText(e.target.value)} placeholder="student@example.com"/></Field>}
+      <div className="question-builder"><div className="row-between"><div><h3>Questions in this test</h3><p className="muted">Add MCQs directly here. They belong only to this test.</p></div><span className="pill">{form.questionsData.length} question(s)</span></div>
+      {form.questionsData.map((q,i)=><div className="question-editor" key={i}><div className="row-between"><b>Question {i+1}</b>{form.questionsData.length>1&&<button className="danger-text" type="button" onClick={()=>removeQuestion(i)}><Trash2 size={15}/> Remove</button>}</div>
+        <Field label="Question text"><textarea rows="2" value={q.q} onChange={e=>patchQuestion(i,"q",e.target.value)} placeholder="Enter your question"/></Field>
+        <div className="two-col">{q.options.map((o,j)=><Field key={j} label={`Option ${String.fromCharCode(65+j)}`}><input value={o} onChange={e=>patchOption(i,j,e.target.value)} placeholder={`Enter option ${String.fromCharCode(65+j)}`}/></Field>)}</div>
+        <div className="two-col"><Field label="Correct answer"><select value={q.correct} onChange={e=>patchQuestion(i,"correct",Number(e.target.value))}>{[0,1,2,3].map(j=><option key={j} value={j}>Option {String.fromCharCode(65+j)}</option>)}</select></Field><Field label="Marks"><input type="number" min="0.5" step="0.5" value={q.marks} onChange={e=>patchQuestion(i,"marks",e.target.value)}/></Field></div>
+        <Field label="Explanation (optional)"><input value={q.explanation||""} onChange={e=>patchQuestion(i,"explanation",e.target.value)} placeholder="Explain the correct answer"/></Field>
+      </div>)}
+      <button type="button" className="outline full" onClick={addQuestion}><Plus/> Add another question</button>
+      <div className="question-summary">Total: <b>{form.questionsData.length} questions</b> · Marks: <b>{form.questionsData.reduce((n,q)=>n+(Number(q.marks)||0),0)}</b></div></div>
+      <p className="muted">The test is saved as a draft. Publish it from the actions menu when it is ready.</p>
+    </Modal>}
+    {modal?.type==="view"&&<Modal title="Test details" onClose={close}><h3>{modal.e.title}</h3><p>{modal.e.subject} · {modal.e.questions} questions · {modal.e.duration} minutes · {modal.e.totalMarks} marks</p><p>Status: {modal.e.status}</p><ol>{(modal.e.questionsData||[]).map((q,i)=><li key={i}>{q.q}</li>)}</ol></Modal>}
+    {modal?.type==="more"&&<Modal title={modal.e.title} onClose={close}><div className="menu-list">{modal.e.status!=="Available"&&<button onClick={()=>updateStatus(modal.e.id,"Available")}>Publish test</button>}{modal.e.status==="Available"&&<button onClick={()=>updateStatus(modal.e.id,"Draft")}>Unpublish test</button>}<button onClick={duplicate}>Duplicate</button><button className="danger-text" onClick={()=>setModal({type:"delete",e:modal.e})}>Delete</button></div></Modal>}
+    {modal?.type==="delete"&&<Modal title="Delete test?" onClose={close} footer={<><button className="outline" onClick={close}>Cancel</button><button className="danger" onClick={remove}>Delete test</button></>}><p>This permanently removes “{modal.e.title}” from this browser's saved test list.</p></Modal>}
+  </section>;
 }
 
 function UsersPage({ notify }) {
-  const [users, setUsers] = useState([
-    { id: 1, name: "Divya Sri", role: "Student", active: true },
-    { id: 2, name: "Ananya Rao", role: "Teacher", active: true },
-    { id: 3, name: "Rahul Kumar", role: "Student", active: true },
-    { id: 4, name: "Priya Sharma", role: "Student", active: true },
-    { id: 5, name: "Arjun Mehta", role: "Student", active: true }
-  ]);
+  const [users, setUsers] = useState(() => loadStore("examsphere_users", []));
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", role: "Student" });
 
@@ -2660,20 +2088,20 @@ function UsersPage({ notify }) {
   const add = () => {
     if (!form.name.trim()) return notify("Please enter a name");
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return notify("Please enter a valid email");
-    setUsers([...users, { id: Date.now(), name: form.name.trim(), email: form.email.trim(), role: form.role, active: true }]);
+    const next=[...users, { id: Date.now(), name: form.name.trim(), email: form.email.trim(), role: form.role, active: true }]; setUsers(next); saveStore("examsphere_users",next);
     notify("User added");
     setForm({ name: "", email: "", role: "Student" });
     close();
   };
 
   const patch = (id, change, msg) => {
-    setUsers(users.map((u) => (u.id === id ? { ...u, ...change } : u)));
+    const next=users.map((u) => (u.id === id ? { ...u, ...change } : u)); setUsers(next); saveStore("examsphere_users",next);
     notify(msg);
     close();
   };
 
   const remove = (id) => {
-    setUsers(users.filter((u) => u.id !== id));
+    const next=users.filter((u) => u.id !== id); setUsers(next); saveStore("examsphere_users",next);
     notify("User removed");
     close();
   };
@@ -2692,10 +2120,10 @@ function UsersPage({ notify }) {
       />
 
       <div className="stats">
-        <Stat i={<Users />} v={String(428 + count("Student") - 4)} l="Students" />
-        <Stat i={<Users />} v={String(24 + count("Teacher") - 1)} l="Teachers" />
-        <Stat i={<ShieldCheck />} v={String(3 + count("Admin"))} l="Admins" />
-        <Stat i={<CheckCircle2 />} v={String(446 + users.filter((u) => u.active).length)} l="Active" />
+        <Stat i={<Users />} v={String(count("Student"))} l="Students" />
+        <Stat i={<Users />} v={String(count("Teacher"))} l="Teachers" />
+        <Stat i={<ShieldCheck />} v={String(count("Admin"))} l="Admins" />
+        <Stat i={<CheckCircle2 />} v={String(users.filter((u) => u.active).length)} l="Active" />
       </div>
 
       <div className="panel table">
@@ -2707,6 +2135,7 @@ function UsersPage({ notify }) {
           <span>Actions</span>
         </div>
 
+        {!users.length && <div className="empty">No users have been added yet. Use <b>Add User</b> to create the first record.</div>}
         {users.map((u, i) => (
           <div className="table-row usergrid" key={u.id}>
             <div className="usercell">
@@ -2808,25 +2237,25 @@ function TeacherResults() {
       <div className="stats">
         <Stat
           i={<ClipboardCheck />}
-          v="428"
+          v="0"
           l="Attempts"
         />
 
         <Stat
           i={<BarChart3 />}
-          v="78%"
+          v="0%"
           l="Average Score"
         />
 
         <Stat
           i={<Target />}
-          v="81%"
+          v="0%"
           l="Average Accuracy"
         />
 
         <Stat
           i={<Trophy />}
-          v="74%"
+          v="0%"
           l="Pass Rate"
         />
       </div>
@@ -2877,25 +2306,25 @@ function AdminResults() {
       <div className="stats">
         <Stat
           i={<ClipboardCheck />}
-          v="3,842"
+          v="0"
           l="Total Attempts"
         />
 
         <Stat
           i={<BarChart3 />}
-          v="79%"
+          v="0%"
           l="Average Score"
         />
 
         <Stat
           i={<Trophy />}
-          v="74%"
+          v="0%"
           l="Pass Rate"
         />
 
         <Stat
           i={<Users />}
-          v="428"
+          v="0"
           l="Students"
         />
       </div>
@@ -3191,7 +2620,7 @@ function SettingsPage({ notify }) {
       <PageTitle
         eyebrow="PREFERENCES"
         title="Settings"
-        sub="Configure your ExamSphere experience."
+        sub="Configure your Online Quiz and Examination System experience."
       />
 
       <div className="settings-grid">

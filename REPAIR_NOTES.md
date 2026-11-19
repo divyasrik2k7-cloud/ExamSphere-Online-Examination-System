@@ -1,4 +1,4 @@
-# ExamSphere Repair Notes
+# Online Quiz and Examination System Repair Notes
 
 This package contains the corrected project used for the Docker deployment setup.
 

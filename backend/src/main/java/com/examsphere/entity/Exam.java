@@ -42,6 +42,14 @@ public class Exam {
     @JoinColumn(name = "created_by")
     private User createdBy;
 
+    @ManyToMany(cascade = CascadeType.PERSIST)
+    @JoinTable(name = "exam_questions", joinColumns = @JoinColumn(name = "exam_id"), inverseJoinColumns = @JoinColumn(name = "question_id"))
+    @OrderColumn(name = "question_order")
+    private java.util.List<Question> questions = new java.util.ArrayList<>();
+
+    public java.util.List<Question> getQuestions() { return questions; }
+    public void setQuestions(java.util.List<Question> questions) { this.questions = questions; }
+
     // Getters and setters
 
     public Long getId() {

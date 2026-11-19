@@ -10,6 +10,6 @@ import java.util.Map;
 public class SystemController {
     @GetMapping("/health")
     public Map<String, String> health() {
-        return Map.of("status", "UP", "service", "ExamSphere API", "version", "2.0.0");
+        return Map.of("status", "UP", "service", "Online Quiz and Examination System API", "version", "2.0.0");
     }
 }

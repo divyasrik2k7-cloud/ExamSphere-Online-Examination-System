@@ -1,4 +1,4 @@
-# ExamSphere Advanced Feature Set
+# Online Quiz and Examination System Advanced Feature Set
 
 ## Authentication
 - Login

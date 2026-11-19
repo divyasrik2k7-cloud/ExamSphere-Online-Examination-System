@@ -1,4 +1,4 @@
-# ExamSphere Project Scope
+# Online Quiz and Examination System Project Scope
 
 ## Aim
 To design and develop a secure, responsive and scalable web-based platform for conducting online quizzes and examinations, managing question banks, evaluating attempts and presenting performance analytics.

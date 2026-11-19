@@ -5,5 +5,5 @@ import java.util.Map;
 @CrossOrigin(origins="http://localhost:5173")
 public class HealthController {
  @GetMapping("/health")
- public Map<String,String> health(){ return Map.of("status","UP","service","ExamSphere API"); }
+ public Map<String,String> health(){ return Map.of("status","UP","service","Online Quiz and Examination System API"); }
 }
