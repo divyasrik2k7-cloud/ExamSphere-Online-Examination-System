@@ -25,7 +25,8 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = {
     "http://localhost:5173",
-    "http://localhost:4173"
+    "http://localhost:4173",
+    "https://online-quix-exam.netlify.app"
 })
 public class AuthController {
 
@@ -65,6 +66,7 @@ public class AuthController {
             @NotBlank String bootstrapKey
     ) {}
 
+    // STUDENT REGISTRATION
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> register(
@@ -91,6 +93,7 @@ public class AuthController {
         return session(user);
     }
 
+    // ADMIN / TEACHER REGISTRATION
     @PostMapping("/register-staff")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> registerStaff(
@@ -146,6 +149,7 @@ public class AuthController {
         return session(user);
     }
 
+    // USER LOGIN
     @PostMapping("/login")
     public Map<String, Object> login(
             @Valid @RequestBody LoginRequest body) {
@@ -171,6 +175,7 @@ public class AuthController {
         return session(user);
     }
 
+    // GET LOGGED-IN USER PROFILE
     @GetMapping("/me")
     public Map<String, Object> me(
             org.springframework.security.core.Authentication authentication) {
@@ -188,6 +193,7 @@ public class AuthController {
         );
     }
 
+    // GENERATE JWT SESSION
     private Map<String, Object> session(User user) {
 
         return Map.of(
